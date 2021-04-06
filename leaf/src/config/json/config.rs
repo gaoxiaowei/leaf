@@ -610,7 +610,6 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         if let Some(ext_insecure) = ext_settings.insecure {
                             settings.insecure = ext_insecure;
                         }
-                        
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
