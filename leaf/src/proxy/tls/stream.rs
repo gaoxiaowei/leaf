@@ -3,34 +3,34 @@ use futures::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::proxy::{ProxyStream, SimpleProxyStream};
+use log::*;
 
 #[cfg(feature = "rustls-tls")]
 pub mod wrapper {
     use std::sync::Arc;
 
     use tokio_rustls::{rustls::ClientConfig, webpki::DNSNameRef, TlsConnector};
-
+    
     use super::*;
+    struct InsecureVerifier;
 
-    // struct InsecureVerifier;
-
-    // impl rustls::ServerCertVerifier for InsecureVerifier {
-    //     fn verify_server_cert(
-    //         &self,
-    //         _roots: &rustls::RootCertStore,
-    //         _presented_certs: &[rustls::Certificate],
-    //         _dns_name: DNSNameRef<'_>,
-    //         _ocsp_response: &[u8],
-    //     ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
-    //         Ok(rustls::ServerCertVerified::assertion())
-    //     }
-    // }
+     impl rustls::ServerCertVerifier for InsecureVerifier {
+         fn verify_server_cert(
+             &self,
+             _roots: &rustls::RootCertStore,
+             _presented_certs: &[rustls::Certificate],
+             _dns_name: DNSNameRef<'_>,
+             _ocsp_response: &[u8],
+         ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+             Ok(rustls::ServerCertVerified::assertion())
+         }
+     }
 
     pub async fn wrap_tls<S>(
         stream: S,
         domain: &str,
         alpns: Vec<String>,
-        // insecure: bool,
+        insecure: bool,
     ) -> Result<Box<dyn ProxyStream>>
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Sync + Send,
@@ -43,11 +43,11 @@ pub mod wrapper {
         for alpn in alpns {
             config.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
-
-        // if insecure {
-        //     let mut dangerous_config = config.dangerous();
-        //     dangerous_config.set_certificate_verifier(Arc::new(InsecureVerifier));
-        // }
+        trace!("stream rustls-tls:wrap_tls option {}", insecure);
+         if insecure {
+             let mut dangerous_config = config.dangerous();
+             dangerous_config.set_certificate_verifier(Arc::new(InsecureVerifier));
+         }
 
         let config = TlsConnector::from(Arc::new(config));
         let dnsname = DNSNameRef::try_from_ascii_str(domain)
@@ -70,12 +70,11 @@ pub mod wrapper {
     use tokio_openssl::SslStream;
 
     use super::*;
-
     pub async fn wrap_tls<S>(
         stream: S,
         domain: &str,
         alpns: Vec<String>,
-        // insecure: bool,
+        insecure: bool,
     ) -> Result<Box<dyn ProxyStream>>
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Sync + Send,
@@ -98,12 +97,17 @@ pub mod wrapper {
                 .set_alpn_protos(&wire)
                 .map_err(|e| anyhow!(format!("set alpn failed: {}", e)))?;
         }
-
+        trace!("stream openssl-tls:wrap_tls option {}", insecure);
         let connector = builder.build();
         let mut ssl =
             Ssl::new(connector.context()).map_err(|_| anyhow!(format!("new tls stream failed")))?;
         ssl.set_hostname(domain)
             .map_err(|_| anyhow!(format!("set tls hostname failed")))?;
+
+         if insecure {
+             ssl.set_verify(SslVerifyMode::NONE);
+         }
+
         let mut stream =
             SslStream::new(ssl, stream).map_err(|_| anyhow!(format!("new tls stream failed")))?;
         Pin::new(&mut stream)

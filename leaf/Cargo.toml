@@ -11,24 +11,10 @@ path = "src/lib.rs"
 
 [features]
 default = [
-    "default-ring"
-]
-
-default-ring = [
     "all-configs",
     "all-endpoints",
     "ring-aead",
     "rustls-tls",
-	# quinn supports only rustls as tls backend for now
-    "inbound-quic",
-    "outbound-quic",
-]
-
-default-openssl = [
-    "all-configs",
-    "all-endpoints",
-    "openssl-aead",
-    "openssl-tls",
 ]
 
 # Grouping all features
@@ -40,7 +26,6 @@ all-endpoints = [
     # inbounds
     "inbound-chain",
     "inbound-amux",
-    # "inbound-quic",
     "inbound-ws",
     "inbound-trojan",
     "inbound-http",
@@ -58,18 +43,19 @@ all-endpoints = [
     "outbound-tls",
     "outbound-ws",
     "outbound-amux",
-    # "outbound-quic",
+    # "outbound-vless",
     "outbound-h2",
     "outbound-failover",
     "outbound-random",
     "outbound-tryall",
     "outbound-chain",
     "outbound-retry",
+    # "outbound-stat",
 ]
 
 # Ring-related
 ring-aead = ["ring"]
-rustls-tls = ["tokio-rustls", "webpki-roots"]
+rustls-tls = ["tokio-rustls", "webpki-roots","rustls"]
 
 # Openssl-related, for platforms not supported by ring, such as mips
 openssl-aead = ["openssl"]
@@ -90,13 +76,14 @@ outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid",
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-h2 = ["h2", "http", "url"]
+outbound-vless = ["uuid"]
 outbound-failover = ["lru_time_cache"]
 outbound-random = []
 outbound-tryall = []
 outbound-chain = []
 outbound-retry = []
+outbound-stat = ["warp"]
 outbound-amux= ["tokio-util"]
-outbound-quic = ["quinn", "rustls", "webpki-roots"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
@@ -106,12 +93,11 @@ inbound-http = ["hyper"]
 inbound-tun = ["tun"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
-inbound-quic = ["quinn", "rustls", "webpki-roots"]
 inbound-chain = []
 
 [dependencies]
 # Common
-tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time", "rt"] }
+tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time"] }
 futures-util = "0.3"
 protobuf = "2"
 thiserror = "1.0"
@@ -129,7 +115,7 @@ serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
 # config-conf
-regex = { version = "1", default-features = false, features = ["std", "perf"], optional = true }
+regex = { version = "1", default-features=false, features=["std", "perf"], optional = true }
 
 # Openssl
 openssl = { version = "0.10", features = ["vendored"], optional = true }
@@ -143,7 +129,7 @@ memmap = "0.7"
 cidr = { version = "0.1", default-features = false }
 
 # DNS
-trust-dns-proto = { version = "0.20", default-features = false }
+trust-dns-proto = "0.20"
 lru = "0.6"
 
 # Logging
@@ -152,8 +138,11 @@ fern = { version = "0.6", features = ["colored"] }
 chrono = "0.4"
 colored = "2.0"
 
-# TLS/rustls/QUIC
-tokio-rustls = { version = "0.22", optional = true }
+#rusttls
+rustls = { version = "0.19.0", optional = true}
+
+# TLS/rustls
+tokio-rustls = { version = "0.22", optional = true ,features = ["dangerous_configuration"]}
 webpki-roots = { version = "0.21", optional = true }
 
 # TLS/openssl
@@ -185,7 +174,7 @@ aes = { version = "0.6", optional = true }
 sha3 = { version = "0.9", optional = true }
 digest = { version = "0.9", optional = true }
 
-# VMess
+# VMess/VLESS
 uuid = { version = "0.8", optional = true }
 
 # VMess/Shadowsocks
@@ -202,23 +191,15 @@ hex = { version = "0.4", optional = true }
 # Failover
 lru_time_cache = { version = "0.11", optional = true }
 
+# Stat
+warp = { version = "0.3", optional = true }
+
 # amux
 tokio-util = { version = "0.6", default-features = false, features = ["io"], optional = true }
 
-# QUIC
-quinn = { version = "0.7", default-features = false, features = ["tls-rustls"], optional = true }
-rustls = { version = "0.19", optional = true }
-
 # TUN
-[target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
-
-# Used in mobile logger
-[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
-memchr = { version = "2" }
-
-[dev-dependencies]
-rcgen = "0.8"
 
 [build-dependencies]
 cc = "1.0"
